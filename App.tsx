@@ -33,7 +33,8 @@ import {
   Scale,
   Calculator,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  AlertTriangle
 } from 'lucide-react';
 import { ResponsiveContainer, Tooltip, AreaChart, Area, XAxis, YAxis } from 'recharts';
 
@@ -399,13 +400,15 @@ const App: React.FC = () => {
                 const incomePer100 = m.rewardUsdt / (ev.requiredVolume / 100 || 1);
                 const profitPer100 = incomePer100 - ev.lossPer100;
                 const isSimulatorOpen = simulatorExpandedId === ev.id;
+                
+                const isNegativeMargin = profitPer100 < 0;
 
-                // 模拟器数据
+                // 修正后的模拟器档位：500, 700, 1000, 1500
                 const scenarios = [
-                    { vol: 500, label: '低保' },
-                    { vol: 5000, label: '中户' },
-                    { vol: 20000, label: '大户' },
-                    { vol: 100000, label: '巨鲸' }
+                    { vol: 500, label: '基础' },
+                    { vol: 700, label: '进阶' },
+                    { vol: 1000, label: '深度' },
+                    { vol: 1500, label: '满额' }
                 ];
 
                 return (
@@ -464,11 +467,21 @@ const App: React.FC = () => {
                                 <button onClick={() => setSimulatorExpandedId(null)} className="text-gray-500 hover:text-white"><ChevronUp className="w-3 h-3" /></button>
                              </div>
                              
-                             <div className="mb-3 bg-gray-900/50 p-2 rounded-lg text-[9px] text-gray-400 leading-relaxed border border-gray-800">
-                                当前模型：每增加 1000U 交易量，预计产生 <span className={profitPer100 * 10 > 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>{profitPer100 * 10 > 0 ? '+' : ''}${(profitPer100 * 10).toFixed(2)}</span> 净利润。
-                                <br/>
-                                <span className="text-purple-300 font-bold mt-1 block">
-                                    建议：{profitPer100 > 0 ? '🚀 边际收益为正，建议刷到活动上限。' : '🛑 边际收益为负，建议仅做最低达标或放弃。'}
+                             <div className={`mb-3 p-2.5 rounded-lg text-[9px] leading-relaxed border flex flex-col gap-1 ${isNegativeMargin ? 'bg-rose-500/10 border-rose-500/20 text-rose-300' : 'bg-gray-900/50 border-gray-800 text-gray-400'}`}>
+                                <div className="flex items-center justify-between">
+                                  <span>每 100U 收益: <span className="text-white font-mono">${incomePer100.toFixed(2)}</span></span>
+                                  <span>成本: <span className="text-white font-mono">-${ev.lossPer100.toFixed(2)}</span></span>
+                                </div>
+                                <div className="border-t border-dashed border-white/10 pt-1 mt-0.5 flex items-center justify-between font-bold">
+                                  <span>净结果:</span>
+                                  <span className={profitPer100 > 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                                    {profitPer100 > 0 ? '+' : ''}{profitPer100.toFixed(2)} USD
+                                  </span>
+                                </div>
+                                
+                                <span className={`font-bold mt-1 block flex items-center gap-1 ${isNegativeMargin ? 'text-rose-400' : 'text-purple-300'}`}>
+                                    {isNegativeMargin ? <AlertTriangle className="w-3 h-3" /> : null}
+                                    {isNegativeMargin ? '警告：做多亏多，立即停手！' : '🚀 边际收益为正，建议刷到活动上限。'}
                                 </span>
                              </div>
 
@@ -478,7 +491,7 @@ const App: React.FC = () => {
                                     const simRevenue = (s.vol / 100) * incomePer100;
                                     const simNet = simRevenue - simCost;
                                     return (
-                                        <div key={s.vol} className="bg-gray-900 border border-gray-800 rounded p-1.5 flex flex-col items-center">
+                                        <div key={s.vol} className={`border rounded p-1.5 flex flex-col items-center ${simNet < 0 ? 'bg-rose-900/10 border-rose-900/30' : 'bg-gray-900 border-gray-800'}`}>
                                             <span className="text-[8px] text-gray-500 uppercase font-bold">{s.label}</span>
                                             <span className="text-[9px] text-gray-300 font-mono mb-1">{s.vol}U</span>
                                             <span className={`text-[9px] font-black ${simNet >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>

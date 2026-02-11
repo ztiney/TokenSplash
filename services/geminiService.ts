@@ -23,6 +23,7 @@ export function calculateMetrics(event: TokenSplashEvent): CalculationResult {
   const roi = (actualNetProfit / (totalCost || 0.01)) * 100;
   
   // 3. 核心：边际收益 (再刷100U赚多少)
+  // 如果奖励是USDT，efficiency就是U；如果奖励是币，efficiency * 币价 = U
   const marginalRewardValue = isUsdtReward ? efficiency : efficiency * event.tokenPrice;
   const marginalProfit100 = marginalRewardValue - event.lossPer100;
 
@@ -35,25 +36,32 @@ export function calculateMetrics(event: TokenSplashEvent): CalculationResult {
 
   // 6. 科学评估逻辑
   let rec: CalculationResult['recommendation'];
+  
+  // 优先级修正：如果边际收益是负的，无论当前是否盈利，都必须叫停，因为刷越多亏越多（或赚得越少）
   if (marginalProfit100 < 0) {
-    rec = { action: 'STOP', reason: '边际负收益！增加交易量只会让亏损扩大，建议立即停止刷量。' };
+    rec = { action: 'STOP', reason: `每刷100U亏损 $${Math.abs(marginalProfit100).toFixed(2)}。再刷会吞噬利润，请立即停手！` };
   } else if (actualNetProfit < 0) {
-    rec = { action: 'EXIT', reason: '当前预估处于亏损状态，且人数可能继续增长，建议止损或密切观察。' };
+    rec = { action: 'EXIT', reason: '当前处于净亏损状态，建议止损观望。' };
   } else if (safetyMargin < 15) {
-    rec = { action: 'HOLD', reason: '利润空间非常窄，人数稍微增加就会变亏损，不建议继续投入。' };
+    rec = { action: 'HOLD', reason: '利润空间极窄，建议锁仓不动。' };
   } else if (marginalProfit100 > event.lossPer100 * 1.5) {
-    rec = { action: 'ADD', reason: '边际回报健康，可以考虑适当增加交易额以抢占更多份额。' };
+    rec = { action: 'ADD', reason: '单位投入产出比优秀，建议增加交易量抢占份额。' };
   } else {
-    rec = { action: 'HOLD', reason: '目前收益结构稳定，建议维持现状，注意观察人数变动。' };
+    rec = { action: 'HOLD', reason: '收益结构尚可，建议维持现状。' };
   }
 
   let status: CalculationResult['status'] = 'LOSS';
   if (actualNetProfit > 0) {
-    if (roi > 100 && safetyMargin > 40) status = 'EXCELLENT';
-    else if (roi > 20) status = 'GOOD';
+    if (roi > 100 && safetyMargin > 40 && marginalProfit100 > 0) status = 'EXCELLENT';
+    else if (roi > 20 && marginalProfit100 > 0) status = 'GOOD';
     else status = 'RISKY';
   } else {
     status = 'LOSS';
+  }
+
+  // 再次强制修正：如果边际是负的，状态最多只能是 RISKY，不能是 GOOD
+  if (marginalProfit100 < 0 && status !== 'LOSS') {
+      status = 'RISKY';
   }
 
   return {
